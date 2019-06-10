@@ -335,7 +335,12 @@ Then, the answers:
 
 > The library `max` function has two function parameters and returns the larger of its arguments. This function has one template type parameter. Could you call `max` passing it an int and a double? If so, how? If not, why not?
 
-No, I could not. Because the arguments to `max` must have the same type.
+Yes. Specify the parameter explicitly:
+> ```cpp
+> int a = 6; double b = 6.1231;
+> std::cout << std::max<long double>(a, b) << std::endl;
+> ```
+> Normal conversions also apply for arguments whose template type parameter is explicitly specified.
 
 ## Exercise 16.38
 
@@ -378,3 +383,110 @@ auto sum(T1 a, T2 b) -> decltype(a + b) {
 ```
 
 More safer solution: <[Better `sum`](ex16_41_sum.cpp)>
+
+## Exercise 16.42
+
+> Determine the type of T and of val in each of the following calls:
+> ```cpp
+> template <typename T> void g(T&& val);
+> int i = 0; const int ci = i;
+> (a) g(i);
+> (b) g(ci);
+> (c) g(i * ci);
+> ```
+
+- (a) T: `int&`        val: `int& &&`       -> `int &`
+- (b) T: `const int&`  val: `const int& &&` -> `const int &`
+- (c) T: `int`         val: `int &&`
+
+> When we pass an lvalue `int` to a function parameter that is an rvalue reference to a template type parameter `T&&`, the compiler deduces the template type parameter as the argument’s lvalue reference type `int &`. 
+
+> `X& &`, `X& &&`, and `X&& &` all collapse to type `X&`.
+
+## Exercise 16.43
+
+> Using the function defined in the previous exercise, what would the template parameter of `g` be if we called `g(i = ci)`?
+
+`int&`
+
+## Exercise 16.44
+
+> Using the same three calls as in the first exercise, determine the types for `T` if `g`’s function parameter is declared as `T` (not `T&&`). What if `g`’s function parameter is `const T&`?
+
+Whatever `g`'s function parameter is declared as `T` or `const T&`, the `T`'s type in this three case would always `int`.
+
+## Exercise 16.45
+
+> Given the following template, explain what happens if we call `g` on a literal value such as 42. What if we call `g` on a variable of type `int`?
+> ```cpp
+> template <typename T> void g(T&& val) { vector<T> v; }
+> ```
+
+If we call `g` on a literal value such as 42, `T` should be `int`, and we get a tempoary variable `v`, which type is `vector<int>`. If we call `g` on a variable of type `int`, then `val` should be a lvalue, `T` should be `int&`(because `int& &&` ==> `int&`), then we would declared a `v` as `vector<int&>`. But the component type of `vector` must be [assignable](http://en.cppreference.com/w/cpp/concept/CopyAssignable), the references are not assignable, thus, `vector<int&>` is not allowed, the compiler would complain about it.
+
+## Exercise 16.46
+
+> Explain this loop from `StrVec::reallocate` in 13.5 (p.530):
+> ```cpp
+> for (size_t i = 0; i != size(); ++i)
+>   alloc.construct(dest++, std::move(*elem++));
+> ```
+
+Since C++11, [`std::allocator::construct`](http://en.cppreference.com/w/cpp/memory/allocator/construct)'s second parameter is `Args&&... args`. `*elem++` is a certain lvalue, and would be casted to a rvalue reference by `std::move`, then the `construct` would call the move constructor of `std::string` rather than copy constructor.
+
+## Exercise 16.47
+
+> Write your own version of the flip function and test it by calling functions that have lvalue and rvalue reference parameters.
+
+[flip and test](ex16_47_flip.cpp)
+
+## Exercise 16.49
+
+> Explain what happens in each of the following calls:
+```cpp
+template <typename T> void f(T);                   //1
+template <typename T> void f(const T*);            //2
+template <typename T> void g(T);                   //3
+template <typename T> void g(T*);                  //4
+int i = 42, *p = &i;
+const int ci = 0, *p2 = &ci;
+g(42); g(p); g(ci); g(p2);
+f(42); f(p); f(ci); f(p2);
+```
+> Answer:
+```cpp
+g(42);  // type: int(rvalue) call template 3  T: int          instantiation: void g(int)
+g(p);   // type: int *       call template 4  T: int          instantiation: void g(int *)
+g(ci);  // type: const int   call template 3  T: const int    instantiation: void g(const int)
+g(p2);  // type: const int * call template 4  T: const int    instantiation: void g(const int *)
+f(42);  // type: int(rvalue) call template 1  T: int          instantiation: void f(int)
+f(p);   // type: int *       call template 1  T: int *        instantiation: void f(int *)
+// f(int *) is an exact match for p(int *) while f(const int *) has a conversion from int * to const int *.
+f(ci);  // type: const int   call template 1  T: const int    instantiation: void f(const int)
+f(p2);  // type: const int * call template 2  T：int          instantiation: void f(const int *)
+```
+
+## Exercise 16.50
+> Define the functions from the previous exercise so that they print an identifying message. Run the code from that exercise. If the calls behave differently from what you expected, make sure you understand why.
+
+[overload template](ex16_50_overload_template.cpp)
+
+## Exercise 16.51
+
+> Determine what sizeof...(Args) and sizeof...(rest) return for each call to foo in this section.
+```cpp
+template <typename T, typename ... Args>
+void foo(const T & t, const Args & ... rest);
+int i = 0; double d = 3.14; string s = "how";
+foo(i, s, 42, d);  // input in Args: string, int(rvalue), double  sizeof...(Args): 3  sizeof...(rest): 3
+foo(s, 42, "hi");  // input in Args: int(rvalue), const char[3]   sizeof...(Args): 2  sizeof...(rest): 2
+foo(d, s);         // input in Args: string                       sizeof...(Args): 1  sizeof...(rest): 1
+foo("hi");         // input in Args: None                         sizeof...(Args): 0  sizeof...(rest): 0
+foo(i, s, s, d);   // input in Args: string, string, double       sizeof...(Args): 3  sizeof...(rest): 3
+```
+
+# Exercise 16.52
+> Write a program to check your answer to the previous question.
+
+[variadic template](ex16_52_variadic_template.cpp)
+
